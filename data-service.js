@@ -1,6 +1,6 @@
 const Sequelize = require('sequelize');
 
-var sequelize = new Sequelize('ooudrmus', 'ooudrmus', 'N0F4Req-nZhiACPmUban8L8fPrcRWgI3', {
+var sequelize = new Sequelize('hxcauiig', 'hxcauiig', 'zBa0PWfGsuaKu6gkvw6isR88WCwLeChX', {
     host: 'peanut.db.elephantsql.com',
     dialect: 'postgres',
     port: 5432,
@@ -130,7 +130,7 @@ module.exports.getStudentsByProgramCode = function (program) {
      return new Promise( (resolve, reject) => {
         Student.findAll({
             where: {
-                programCode: program 
+                program: program 
             }
         })
         .then((data) => {
@@ -182,9 +182,11 @@ module.exports.updateStudent = function(studentData){
         { 
         where: { studentID: studentData.studentID }
         })
-        .then(resolve(Student.findAll()))
-        .catch(reject('unable to add Student'))
-   })
+        .then(() => { resolve(); })
+        .catch((err) => { reject("unable to update student");
+            return;
+        });
+   });
 };
 
 module.exports.deleteStudentById = function(id){
@@ -250,7 +252,7 @@ module.exports.updateProgram = function(programData){
             programCode:programData.programCode,
             programName:programData.programName}, 
         {where: { 
-            programCode:programData.programCode
+            programCode: programData.programCode
         }})
         .then(() => {
             resolve();
