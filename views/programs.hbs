@@ -1,6 +1,9 @@
 <div class="row">
     <div class="col-md-12">
-        <h2>Programs</h2>
+        <h2>
+            Programs
+            <a href="/programs/add" class="btn btn-success pull-right">Add New Program</a>
+        </h2>
         <hr />
         <div class="table-responsive">
             <table class="table">
@@ -14,11 +17,17 @@
                     {{#each programs}}
                     <tr>
                         <td><a href="/students?program={{this.programCode}}">{{this.programCode}}</a> </td>
-                        <td><a href="/students?program={{this.programCode}}">{{this.programName}}</a></td>
+                        <td><a href="/program/{{this.programCode}}">{{this.programName}}</a></td>
+                        <td><a href="/programs/delete/{{this.programCode}}" class="btn btn-danger">Remove</a></td>
                     </tr>
                     {{/each}}
                 </tbody>
             </table>
         </div>
     </div>
+    {{#unless programs}}
+    <div class="col-md-12 text-center">
+        <strong>{{message}}</strong>
+    </div>
+    {{/unless}}
 </div>

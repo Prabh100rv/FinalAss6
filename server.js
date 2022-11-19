@@ -1,13 +1,13 @@
 /*********************************************************************************
-*  WEB322 – Assignment 03
+*  WEB322 – Assignment 05
 *  I declare that this assignment is my own work in accordance with Seneca Academic
    Policy.  No part of this assignment has been copied manually or electronically
    from any other source (including 3rd party web sites) or distributed to other
    students.
 *
-*  Name: Prabhjot Singh ** Student ID: 159760214 ** Date: 31/10/2022
+*  Name: Prabhjot Singh ** Student ID: 159760214 ** Date: 18/11/2022
 *
-*  Online (Cyclic) Link: https://tame-gray-scorpion-tie.cyclic.app
+*  Online (Cyclic) Link: 
 *
 ********************************************************************************/
 const express = require("express");
@@ -15,6 +15,7 @@ const path = require('path');
 const data = require("./data-service.js");
 const fs = require('fs');
 const multer = require('multer');
+const bodyParser = require("body-parser");
 const app = express();
 const exphbs = require('express-handlebars');
 
@@ -35,7 +36,8 @@ app.engine('.hbs', exphbs.engine({
     helpers: {
         navLink: function(url, options){
             return '<li' + 
-                ((url == app.locals.activeRoute) ? ' class="active" ' : '') + '><a href="' + url + '">' + options.fn(this) + '</a></li>'; },
+                ((url == app.locals.activeRoute) ? ' class="active" ' : '') +
+                 '><a href="' + url + '">' + options.fn(this) + '</a></li>'; },
         equal: function (lvalue, rvalue, options) {
             if (arguments.length < 3)
                 throw new Error("Handlebars Helper equal needs 2 parameters");
@@ -70,7 +72,13 @@ app.get("/images/add", (req,res) => {
 });
 
 app.get("/students/add", (req,res) => {
-    res.render(path.join(__dirname, "/views/addStudent.hbs"));
+    data.getPrograms()
+    .then(data => res.render("addStudent", {programs: data}))
+    .catch(err => res.render("addStudent", {programs: null})); 
+});
+
+app.get("/programs/add", (req,res) => {
+    res.render(path.join(__dirname, "/views/addProgram.hbs"));
 });
 
 app.get("/images", (req,res) => {
@@ -82,63 +90,147 @@ app.get("/images", (req,res) => {
 app.get("/students", (req, res) => {
     if (req.query.status) {
         data.getStudentsByStatus(req.query.status).then((data) => {
-            res.render("students", {students: data});
+            if (data.length > 0){
+                res.render("students", {students: data});
+            }
+            else {
+                res.render("students", {message: "no results"});
+            }
         }).catch((err) => {
-            res.render("students", {message: "no results"});
+            res.render("student", {message: "no results"});
         });
     } else if (req.query.program) {
         data.getStudentsByProgramCode(req.query.program).then((data) => {
-            res.render("students", {students: data});
+            if (data.length > 0){
+                res.render("students", {students: data});
+            }
+            else {
+                res.render("students", {message: "no results"});
+            }
         }).catch((err) => {
-            res.render("students", {message: "no results"});
+            res.render("student", {message: "no results"});
         });
     } else if (req.query.credential) {
        data.getStudentsByExpectedCredential(req.query.credential).then((data) => {
-            res.render("students", {students: data});
+            if (data.length > 0){
+                res.render("students", {students: data});
+            }
+            else{
+                res.render("students", {message: "no results"});
+            }
        }).catch((err) => {
-            res.render("students", {message: "no results"});
-       });
+        res.render("student", {message: "no results"});
+    });
     } else {
         data.getAllStudents().then((data) => {
-            res.render("students", {students: data});
+            if (data.length > 0){
+                res.render("students", {students: data});
+            } 
+            else {
+                res.render("students", {message: "no results"});
+            }
         }).catch((err) => {
-            res.render("students", {message: "no results"});
+            res.render("student", {message: "no results"});
         });
     }
 });
 
-app.get("/student/:studentID", (req, res) => {
-    data.getStudentById(req.params.studentID).then((data) => {
-        res.render("student", {student: data})
-    }).catch((err) => {
-        res.render("student", {message: "no results"});
+app.get("/student/:studentId", (req, res) => {
+    let viewData = {};
+    data.getStudentById(req.params.studentId).then((data) => {
+        if (data) {
+            viewData.student = data; 
+        } else {
+            viewData.student = null; 
+        }   
+    }).catch(() => {
+        viewData.student = null;  
+    }).then(data.getPrograms)
+    .then((data) => {
+        viewData.programs = data; 
+        for (let i = 0; i < viewData.programs.length; i++) {
+            if (viewData.programs[i].programCode == viewData.student.program) {
+                viewData.programs[i].selected = true;
+            }
+        }
+    }).catch(() => {
+        viewData.programs = [];
+    }).then(() => {
+        console.log(viewData);
+        if (viewData.student == null) { 
+            res.status(404).send("Student Not Found");
+        } else {
+            res.render("student", { viewData: viewData }); 
+        }
+    }).catch((err)=>{
+        res.status(500).send("Unable to Show Students");
     });
 });
 
-// app.get("/intlstudents", (req,res) => {
-//     data.getInternationalStudents().then((data)=>{
-//         res.render("students", {message: "no results"});
-//     });
-// });
+app.get("/program/:programCode", (req, res) => {
+    data.getProgramByCode(req.params.programCode).then((data) => {
+        res.render("program", {program: data});
+    }).catch((err) => {
+        res.status(404).send("Program Not Found");
+    });
+});
 
 app.get("/programs", (req,res) => {
     data.getPrograms().then((data)=>{
-        res.render("programs", {programs: data});
+        if(data.length > 0){
+            res.render("programs", {programs: data});
+        }
+        else{
+            res.render("programs", {message: "no results"});
+        }
+    }).catch((err) => {
+        res.render("programs", {message: "no results"});
     });
+});
+
+app.get('/programs/delete/:programCode', (req,res) => {
+    data.deleteProgramByCode(req.params.programCode).then(res.redirect("/programs"))
+    .catch(err => res.status(500).send("(Unable to Remove Program / Program not found)"))
+});
+
+app.get('/students/delete/:studentID', (req,res) => {
+    data.deleteStudentById(req.params.studentID).then(res.redirect("/students"))
+    .catch(err => res.status(500).send("(Unable to Remove Student / Student not found)"))
 });
 
 app.post("/students/add", (req, res) => {
     data.addStudent(req.body).then(()=>{
       res.redirect("/students");
+    }).catch((err) => {
+        res.status(500).send("Unable to Add Student");
+    });
+});
+
+app.post("/programs/add", (req, res) => {
+    data.addProgram(req.body).then(()=>{
+      res.redirect("/programs");
+    }).catch((err) => {
+        res.status(500).send("Unable to Add Program");
     });
 });
 
 app.post("/student/update", (req, res) => {
-    data.addStudent(req.body).then(()=>{
-    res.redirect("/students");
-    })
+    data.updateStudent(req.body).then(()=>{
+    console.log(data);
+    res.redirect("/students")
+}).catch((err) => {
+    res.status(500).send("Unable to Update Students");
 });
-   
+});
+
+app.post("/program/update", (req, res) => {
+    data.updateProgram(req.body).then(()=>{
+    res.redirect("/programs");
+    }).catch((err) => {
+        res.status(500).send("Unable to Update Programs");
+    });
+});
+
 app.post("/images/add", upload.single("imageFile"), (req,res) => {
     res.redirect("/images");
 });
@@ -154,3 +246,4 @@ data.initialize().then(function(){
 }).catch(function(err){
     console.log("unable to start server: " + err);
 });
+
