@@ -1,14 +1,14 @@
 /*********************************************************************************
-*  WEB322 – Assignment 05
+*  WEB322 – Assignment 06
 *  I declare that this assignment is my own work in accordance with Seneca Academic
-   Policy.  No part of this assignment has been copied manually or electronically
+   Policy. No part of this assignment has been copied manually or electronically
    from any other source (including 3rd party web sites) or distributed to other
    students.
 *
-*  Name: Prabhjot Singh ** Student ID: 159760214 ** Date: 18/11/2022
+*  Name: Prabhjot Singh ** Student ID: 159760214 ** Date: 27/11/2022
 *
 *  Online (Cyclic) Link: 
-*
+
 ********************************************************************************/
 const express = require("express");
 const path = require('path');
@@ -18,6 +18,8 @@ const multer = require('multer');
 const bodyParser = require("body-parser");
 const app = express();
 const exphbs = require('express-handlebars');
+const dataServiceAuth = require("./data-service-auth");
+const clientSessions = require('client-sessions');
 
 const HTTP_PORT = process.env.PORT || 8080;
 
@@ -59,6 +61,25 @@ app.use(function(req, res, next){
     next();
 });
 
+app.use(clientSessions({
+    cookieName: "session", 
+    secret: "FinalAssignment6", 
+    duration: 2 * 60 * 1000,
+    activeDuration: 1000 * 60
+}));
+
+app.use((req,res,next) => {
+    res.locals.session = req.session;
+    next();
+});
+
+ensureLogin = (req,res,next) => {
+    if (!(req.session.user)) {
+        res.redirect("/login");
+    }
+    else { next(); }
+};
+
 app.get('/', (req, res) => {
     res.render(path.join(__dirname + "/views/home.hbs"));
 });
@@ -67,96 +88,89 @@ app.get('/about', (req, res) => {
     res.render(path.join(__dirname + "/views/about.hbs"));
 });
 
-app.get("/images/add", (req,res) => {
-    res.render(path.join(__dirname, "/views/addImage.hbs"));
+//******* Images ********
+app.get("/images/add", ensureLogin, (req,res) => {
+    res.render("addImage");
 });
 
-app.get("/students/add", (req,res) => {
-    data.getPrograms()
-    .then(data => res.render("addStudent", {programs: data}))
-    .catch(err => res.render("addStudent", {programs: null})); 
+app.post("/images/add", ensureLogin, upload.single("imageFile"), (req,res) =>{
+    res.redirect("/images");
 });
 
-app.get("/programs/add", (req,res) => {
-    res.render(path.join(__dirname, "/views/addProgram.hbs"));
-});
-
-app.get("/images", (req,res) => {
+app.get("/images", ensureLogin, (req,res) => {
     fs.readdir("./public/images/uploaded", function(err, items) {
         res.render("images", { data: items });
     });
 });
 
-app.get("/students", (req, res) => {
-    if (req.query.status) {
-        data.getStudentsByStatus(req.query.status).then((data) => {
-            if (data.length > 0){
-                res.render("students", {students: data});
-            }
-            else {
-                res.render("students", {message: "no results"});
-            }
-        }).catch((err) => {
-            res.render("student", {message: "no results"});
-        });
-    } else if (req.query.program) {
-        data.getStudentsByProgramCode(req.query.program).then((data) => {
-            if (data.length > 0){
-                res.render("students", {students: data});
-            }
-            else {
-                res.render("students", {message: "no results"});
-            }
-        }).catch((err) => {
-            res.render("student", {message: "no results"});
-        });
-    } else if (req.query.credential) {
-       data.getStudentsByExpectedCredential(req.query.credential).then((data) => {
-            if (data.length > 0){
-                res.render("students", {students: data});
-            }
-            else{
-                res.render("students", {message: "no results"});
-            }
-       }).catch((err) => {
-        res.render("student", {message: "no results"});
+//******* Students ********
+app.get("/students/add", ensureLogin, (req,res) => {
+    data.getPrograms().then((data)=>{
+        res.render("addStudent", {programs: data});
+    }).catch((err) => {
+    res.render("addStudent", {programs: [] });
     });
-    } else {
-        data.getAllStudents().then((data) => {
-            if (data.length > 0){
-                res.render("students", {students: data});
-            } 
-            else {
-                res.render("students", {message: "no results"});
-            }
-        }).catch((err) => {
-            res.render("student", {message: "no results"});
-        });
-    }
+
 });
 
-app.get("/student/:studentId", (req, res) => {
+app.post("/students/add", ensureLogin, (req, res) => {
+    data.addStudent(req.body).then(()=>{
+      res.redirect("/students"); 
+    }).catch((err)=>{
+        res.status(500).send("Unable to Add the Student");
+      });
+});
+
+app.get("/students", ensureLogin, (req, res) => {
+    if (req.query.status) {
+         data.getStudentsByStatus(req.query.status).then((data) => {
+             res.render("students", {students:data});
+         }).catch((err) => {
+             res.render("students",{ message: "no results" });
+         });
+     } else if (req.query.program) {
+         data.getStudentsByProgramCode(req.query.program).then((data) => {
+             res.render("students", {students:data});
+         }).catch((err) => {
+             res.render("students",{ message: "no results" });
+         });
+     } else if (req.query.credential) {
+         data.getStudentsByExpectedCredential(req.query.credential).then((data) => {
+             res.render("students", {students:data});
+         }).catch((err) => {
+             res.render("students",{ message: "no results" });
+         });
+     } else {
+         data.getAllStudents().then((data) => {
+             res.render("students", {students:data});
+         }).catch((err) => {
+             res.render("students",{ message: "no results" });
+         });
+     }
+ });
+
+ app.get("/student/:studentId", ensureLogin, (req, res) => {
     let viewData = {};
+
     data.getStudentById(req.params.studentId).then((data) => {
         if (data) {
-            viewData.student = data; 
+            viewData.student = data;
         } else {
-            viewData.student = null; 
-        }   
+            viewData.student = null;
+        }
     }).catch(() => {
-        viewData.student = null;  
+        viewData.student = null;
     }).then(data.getPrograms)
     .then((data) => {
-        viewData.programs = data; 
+        viewData.programs = data;
         for (let i = 0; i < viewData.programs.length; i++) {
             if (viewData.programs[i].programCode == viewData.student.program) {
                 viewData.programs[i].selected = true;
             }
         }
     }).catch(() => {
-        viewData.programs = [];
+        viewData.programs = []; 
     }).then(() => {
-        console.log(viewData);
         if (viewData.student == null) { 
             res.status(404).send("Student Not Found");
         } else {
@@ -164,18 +178,46 @@ app.get("/student/:studentId", (req, res) => {
         }
     }).catch((err)=>{
         res.status(500).send("Unable to Show Students");
+      });
+});
+
+app.get("/intlstudents", ensureLogin, (req,res) => {
+    data.getInternationalStudents().then((data)=>{
+        res.json(data);
     });
 });
 
-app.get("/program/:programCode", (req, res) => {
-    data.getProgramByCode(req.params.programCode).then((data) => {
-        res.render("program", {program: data});
+app.post("/student/update", ensureLogin, (req, res) => {
+    data.updateStudent(req.body).then(()=>{
+    res.redirect("/students");
+  }).catch((err)=>{
+    res.status(500).send("Unable to Update the Student");
+  });
+  
+});
+
+app.get("/students/delete/:sid", ensureLogin, (req,res)=>{
+    data.deleteStudentById(req.params.sid).then(()=>{
+        res.redirect("/students");
+    }).catch((err)=>{
+        res.status(500).send("Unable to Remove Student / Student Not Found");
+    });
+});
+
+//********** Programs *************
+app.get("/programs/add", ensureLogin, (req,res) => {
+    res.render(path.join(__dirname, "/views/addProgram.hbs"));
+});
+
+app.post("/programs/add", ensureLogin, (req, res) => {
+    data.addProgram(req.body).then(()=>{
+      res.redirect("/programs");
     }).catch((err) => {
-        res.status(404).send("Program Not Found");
+        res.status(500).send("Unable to Add Program");
     });
 });
 
-app.get("/programs", (req,res) => {
+app.get("/programs", ensureLogin, (req,res) => {
     data.getPrograms().then((data)=>{
         if(data.length > 0){
             res.render("programs", {programs: data});
@@ -188,42 +230,15 @@ app.get("/programs", (req,res) => {
     });
 });
 
-app.get('/programs/delete/:programCode', (req,res) => {
-    data.deleteProgramByCode(req.params.programCode).then(res.redirect("/programs"))
-    .catch(err => res.status(500).send("(Unable to Remove Program / Program not found)"))
-});
-
-app.get('/students/delete/:studentID', (req,res) => {
-    data.deleteStudentById(req.params.studentID).then(res.redirect("/students"))
-    .catch(err => res.status(500).send("(Unable to Remove Student / Student not found)"))
-});
-
-app.post("/students/add", (req, res) => {
-    data.addStudent(req.body).then(()=>{
-      res.redirect("/students");
+app.get("/program/:programCode", ensureLogin, (req, res) => {
+    data.getProgramByCode(req.params.programCode).then((data) => {
+        res.render("program", {program: data});
     }).catch((err) => {
-        res.status(500).send("Unable to Add Student");
+        res.status(404).send("Program Not Found");
     });
 });
 
-app.post("/programs/add", (req, res) => {
-    data.addProgram(req.body).then(()=>{
-      res.redirect("/programs");
-    }).catch((err) => {
-        res.status(500).send("Unable to Add Program");
-    });
-});
-
-app.post("/student/update", (req, res) => {
-    data.updateStudent(req.body).then(()=>{
-    console.log(data);
-    res.redirect("/students")
-}).catch((err) => {
-    res.status(500).send("Unable to Update Students");
-});
-});
-
-app.post("/program/update", (req, res) => {
+app.post("/program/update", ensureLogin, (req, res) => {
     data.updateProgram(req.body).then(()=>{
     res.redirect("/programs");
     }).catch((err) => {
@@ -231,19 +246,66 @@ app.post("/program/update", (req, res) => {
     });
 });
 
-app.post("/images/add", upload.single("imageFile"), (req,res) => {
-    res.redirect("/images");
+app.get('/programs/delete/:programCode', ensureLogin, (req,res) => {
+    data.deleteProgramByCode(req.params.programCode).then(res.redirect("/programs"))
+    .catch(err => res.status(500).send("(Unable to Remove Program / Program not found)"))
 });
 
+// ************* Account ***************
+app.get("/login", (req,res) => {
+    res.render("login");
+});
+
+app.get("/register", (req,res) => {
+    res.render("register");
+});
+
+app.post("/register", (req,res) => {
+    dataServiceAuth.registerUser(req.body)
+    .then(() => res.render("register", {successMessage: "User created" } ))
+    .catch (err => res.render("register", {errorMessage: err, userName:req.body.userName }) )
+});
+
+app.post("/login", (req,res) => {
+    req.body.userAgent = req.get('User-Agent');
+    dataServiceAuth.checkUser(req.body)
+    .then(user => {
+        req.session.user = {
+            userName:user.userName,
+            email:user.email,
+            loginHistory:user.loginHistory
+        }
+        res.redirect("/students");
+    })
+    .catch(err => {
+        res.render("login", {errorMessage:err, userName:req.body.userName} )
+    }) 
+});
+
+app.get("/logout", (req,res) => {
+    req.session.reset();
+    res.redirect("/login");
+});
+
+app.get("/userHistory", ensureLogin, (req,res) => {
+    res.render("userHistory", {user:req.session.user} );
+});
+
+// ************* Intialize ***************
 app.use((req, res) => {
     res.status(404).send("Page Not Found");
   });
 
-data.initialize().then(function(){
+data.initialize()
+.then(dataServiceAuth.initialize)
+
+.then(function(){
     app.listen(HTTP_PORT, function(){
         console.log("app listening on: " + HTTP_PORT)
     });
 }).catch(function(err){
     console.log("unable to start server: " + err);
 });
+  
+
 
